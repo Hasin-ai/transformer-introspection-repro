@@ -1,0 +1,134 @@
+# =============================================================================
+# Configuration for the small-scale introspection reproduction.
+#
+# Everything that could plausibly change the scientific result lives here, and
+# a copy of this file is written next to every results file so that any number
+# in results/ can be traced back to the exact configuration that produced it.
+# =============================================================================
+
+# ----------------------------------------------------------------------------
+# Model
+# ----------------------------------------------------------------------------
+model:
+  # TransformerLens official model name.
+  #   Qwen/Qwen2.5-0.5B-Instruct  -> 24 layers, d_model 896, ~0.5B params (default)
+  #   Qwen/Qwen2.5-1.5B-Instruct  -> 28 layers, d_model 1536, ~1.5B params (heavier)
+  #   gpt2                        -> no chat template, will not follow the task
+  #   random-tiny                 -> OFFLINE SMOKE TEST. Randomly initialised
+  #                                  Qwen-shaped model + a stub tokenizer. Runs
+  #                                  the entire pipeline with no downloads.
+  #                                  Produces meaningless numbers on purpose.
+  name: "Qwen/Qwen2.5-0.5B-Instruct"
+
+  # float32 is the safe choice on Apple MPS. bfloat16 halves memory but MPS
+  # support for some reductions is patchy; see README troubleshooting.
+  dtype: "float32"
+
+# ----------------------------------------------------------------------------
+# Device
+# ----------------------------------------------------------------------------
+device:
+  # "auto" -> mps if available, else cuda, else cpu.
+  prefer: "auto"
+  # Set true to force CPU regardless of what is available.
+  force_cpu: false
+  # Run a small numerical self-test on the selected device and fall back to CPU
+  # if it disagrees with CPU beyond tolerance. Cheap insurance against silent
+  # MPS numerical bugs.
+  verify: true
+  mps_tolerance: 0.02
+
+# ----------------------------------------------------------------------------
+# Reproducibility
+# ----------------------------------------------------------------------------
+seed: 1337
+
+# ----------------------------------------------------------------------------
+# Concept-vector extraction
+# ----------------------------------------------------------------------------
+concept_vector:
+  # Prompt used to elicit a concept's representation. {word} is substituted.
+  template: "Tell me about {word}."
+  # Hook point the vector is read from and injected into.
+  # "resid_post" = output of the transformer block (post-MLP residual stream).
+  hook: "resid_post"
+  # Token position the vector is read from. -1 = final token of the prompt.
+  read_position: -1
+  # Number of filler words averaged to form the baseline that is subtracted.
+  n_baseline_words: 50
+
+# ----------------------------------------------------------------------------
+# Injection
+# ----------------------------------------------------------------------------
+injection:
+  # Injection strength is expressed in units of the MEAN RESIDUAL-STREAM NORM
+  # at the injection layer, NOT as a raw multiple of the concept vector.
+  # This makes a given strength roughly comparable across layers, which the
+  # layer sweep needs. See README "Deviations from the original".
+  strengths: [0.0, 0.5, 1.0, 2.0, 4.0, 8.0]
+
+  # Strength used for the confirmatory (pre-registered) test.
+  primary_strength: 2.0
+
+  # Which token positions receive the injection.
+  #   "trial"      -> from the start of the final user turn through generation
+  #                   (closest to the original experiment)
+  #   "answer"     -> only the assistant's positions (robustness variant: rules
+  #                   out the model reacting to a corrupted *question*)
+  #   "all"        -> every position
+  window: "trial"
+
+  # Layers swept in the exploratory analysis. "auto" = every layer.
+  sweep_layers: "auto"
+
+  # Confirmatory layer, fixed BEFORE looking at results, at 2/3 depth, which is
+  # where Lindsey (2025) reports the effect peaking. Expressed as a fraction so
+  # it transfers across model sizes.
+  primary_layer_frac: 0.667
+
+# ----------------------------------------------------------------------------
+# Experimental design
+# ----------------------------------------------------------------------------
+design:
+  n_concepts: 30          # concepts used per condition
+  n_distractors: 7        # forced-choice identification: 1 correct + N distractors
+  conditions:
+    - "injected"          # true concept vector
+    - "random_control"    # norm-matched random Gaussian vector
+    - "no_injection"      # strength 0
+    - "yesbias_control"   # concept vector, but an unrelated no-answer question
+
+# ----------------------------------------------------------------------------
+# Generation (qualitative samples only; all statistics use logits)
+# ----------------------------------------------------------------------------
+generation:
+  enabled: true
+  n_examples: 6           # how many free-generation samples to save per condition
+  max_new_tokens: 40
+  temperature: 0.0        # 0 = greedy, matching the paper's example transcripts
+
+# ----------------------------------------------------------------------------
+# Interventions / downstream causal analysis
+# ----------------------------------------------------------------------------
+intervention:
+  enabled: true
+  n_concepts: 8           # ablation sweep is the expensive part; use a subset
+  components: ["attn_out", "mlp_out"]
+  mode: "zero"            # "zero" or "mean"
+
+# ----------------------------------------------------------------------------
+# Statistics
+# ----------------------------------------------------------------------------
+stats:
+  n_bootstrap: 5000
+  n_permutations: 10000
+  alpha: 0.05
+
+# ----------------------------------------------------------------------------
+# Output
+# ----------------------------------------------------------------------------
+paths:
+  data: "data"
+  raw: "results/raw"
+  processed: "results/processed"
+  figures: "results/figures"

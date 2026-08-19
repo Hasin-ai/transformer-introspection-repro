@@ -44,14 +44,7 @@ def prepare_example_tensors(example_dict):
     correct_label = example_dict["label"]
     candidate_endings = example_dict["endings"]
 
-    example_data = {
-        "label": correct_label,
-        "context_token_ids": None,
-        "ending_token_ids": [],
-    }
-
     context_token_ids = tokenizer.encode(context)
-    example_data["context_token_ids"] = context_token_ids
 
     token_sequences = []
     completion_masks = []
@@ -59,7 +52,6 @@ def prepare_example_tensors(example_dict):
         ending_token_ids = tokenizer.encode(" " + ending_text)
         token_sequences.append(context_token_ids + ending_token_ids)
         completion_masks.append([0] * len(context_token_ids) + [1] * len(ending_token_ids))
-        example_data["ending_token_ids"].append(ending_token_ids)
 
     max_sequence_length = max(len(seq) for seq in token_sequences)
     tokens_tensor = torch.zeros((4, max_sequence_length), dtype=torch.long)
@@ -68,7 +60,7 @@ def prepare_example_tensors(example_dict):
         tokens_tensor[idx, :len(seq)] = torch.tensor(seq)
         mask_tensor[idx, :len(mask)] = torch.tensor(mask)
 
-    return example_data, tokens_tensor, mask_tensor, correct_label
+    return tokens_tensor, mask_tensor, correct_label
 
 def iterate_dataset_examples(split_name: str):
     ensure_data_downloaded(split_name)
@@ -87,7 +79,7 @@ def run_evaluation(model_name: str, device_name: str):
     correct_predictions_normalized = 0
 
     for example in iterate_dataset_examples("val"):
-        example_data, input_tokens, completion_mask, true_label = prepare_example_tensors(example)
+        input_tokens, completion_mask, true_label = prepare_example_tensors(example)
         input_tokens = input_tokens.to(device_name)
         completion_mask = completion_mask.to(device_name)
 

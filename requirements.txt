@@ -1,0 +1,23 @@
+# Tested combination. TransformerLens is the version-sensitive one: its 3.x line
+# deprecates HookedTransformer in favour of TransformerBridge, and its 2.x line
+# predates the transformers 5.x config API. Pinning avoids the cross-product.
+#
+# If pip resolves something incompatible, the fallback that is known to work is:
+#     pip install "transformer-lens==2.15.0" "transformers==4.46.3" "torch>=2.4"
+# and everything in src/ runs unchanged on that combination too.
+
+torch>=2.4
+transformer-lens>=3.7,<4
+transformers>=5.0,<6
+accelerate>=0.30
+
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+matplotlib>=3.8
+tabulate>=0.9          # pandas .to_markdown()
+PyYAML>=6.0
+tqdm>=4.66
+
+# Notebook only; not needed for run_all.py
+ipykernel>=6.29
